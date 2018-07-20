@@ -7,6 +7,9 @@ import numpy as np
 import argparse
 import os
 
+import cv2
+import imutils
+
 try:
     import third_party.pymaxflow.pymaxflow as pymaxflow
 except ImportError:
@@ -211,6 +214,22 @@ def get_user_polyline(img):
 
     return selector.points
 
+def save_origin_grabcut(img, bbox):
+    mask_img = cv2.imread("Saliency")
+    mask_img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+    mask = np.zeros(mask_img.shape[:2],np.uint8)
+    bgdModel = np.zeros((1,65),np.float64)
+    fgdModel = np.zeros((1,65),np.float64)
+    # rect = (50,0,280,500)
+    # rect = (150,110,300,710) //this works pretty good for girl1.jpg 
+    # -----replace this part----
+    rect = tuple([int(x) for x in bbox])
+    cv2.grabCut(img,mask,rect,bgdModel,fgdModel,5,cv2.GC_INIT_WITH_RECT)
+    mask2 = np.where((mask==2)|(mask==0),0,1).astype('uint8')
+    img = img*mask2[:,:,np.newaxis]
+    plt.imshow(img),plt.show()
+    # ----replace this part-----
+    
 # get_user_selection
 # Returns coordinates of the bounding box the user draws on the given image
 def get_user_selection(img):
@@ -221,10 +240,12 @@ def get_user_selection(img):
     # Initialize rectangular selector
     fig, ax = plt.subplots()
     selector = RectSelector(ax)
+    print '*******~~~~~~AX~~~~~*******...', selector.rectangle
     
     # Show the image on the screen
     ax.imshow(img)
     plt.show()
+    print '*******~~~~~~selector~~~~~*******...', selector.rectangle
 
     # Control reaches here once the user has selected a rectangle, 
     # since plt.show() blocks.
@@ -588,7 +609,7 @@ def grabcut(img, bbox, image_name, user_interaction=False, num_iterations=10,
             # Cluster visualization
             if visualize_clusters:
                 visualize_clusters(img.shape, k, alpha, iteration, image_name, 
-                    show_image=True, save_image=False)
+                    show_image=True, save_image=True)
 
             # 2. Learn GMM parameters
             if debug:
@@ -695,6 +716,7 @@ def grabcut(img, bbox, image_name, user_interaction=False, num_iterations=10,
                     result = np.dstack((result, result, result))
                     plt.imshow(result)
                     plt.show()
+                    cv2.imwrite("Saliency.png", result);
             if debug:
                 print 'Relative change was %f'%relative_change
 
@@ -716,7 +738,7 @@ def grabcut(img, bbox, image_name, user_interaction=False, num_iterations=10,
                         alpha[current_y,current_x] = 0
         else:
             break
-        
+
     if get_all_segmentations:
         return segmentations
     else:
@@ -743,6 +765,8 @@ def main():
     grabcut(img, bbox, args.image_file, num_iterations=args.num_iterations, 
         num_components=args.num_components, user_interaction=args.user_interaction, 
         debug=True, drawImage=True)
+    save_origin_grabcut(img, bbox)
+
 
 ################################################################################
 ######################## UNVECTORIZED GRABCUT HELPERS ##########################
